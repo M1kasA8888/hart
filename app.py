@@ -83,192 +83,220 @@ st.set_page_config(page_title="无人机智能化应用系统", page_icon="🚁"
 
 # 初始化
 if 'a_point' not in st.session_state:
-    st.session_state.a_point = {"lat": 32.2057, "lon": 118.7178, "set": False}
+    st.session_state.a_point = {"lat": 32.2322, "lon": 118.749, "set": True}
 if 'b_point' not in st.session_state:
-    st.session_state.b_point = {"lat": 32.2100, "lon": 118.7250, "set": False}
+    st.session_state.b_point = {"lat": 32.2343, "lon": 118.749, "set": True}
 if 'coord_system' not in st.session_state:
-    st.session_state.coord_system = "WGS-84"
+    st.session_state.coord_system = "GCJ-02"
 if 'simulator' not in st.session_state:
     st.session_state.simulator = DroneHeartbeatSimulator()
     st.session_state.running = False
+if 'flight_height' not in st.session_state:
+    st.session_state.flight_height = 50
 
-# ========== 侧边栏 ==========
-with st.sidebar:
-    st.header("📊 系统状态")
-    col_status1, col_status2 = st.columns(2)
-    with col_status1:
-        if st.session_state.a_point["set"]:
-            st.success("✅ A点已设")
-        else:
-            st.info("⚪ A点未设")
-    with col_status2:
-        if st.session_state.b_point["set"]:
-            st.success("✅ B点已设")
-        else:
-            st.info("⚪ B点未设")
-    
-    st.markdown("---")
-    st.header("⚙️ 坐标系设置")
-    coord_system = st.radio(
-        "输入坐标系",
-        ["WGS-84", "GCJ-02"],
-        index=0 if st.session_state.coord_system == "WGS-84" else 1
-    )
-    st.session_state.coord_system = coord_system
-    st.caption("💡 地图显示使用 WGS-84")
-
-# ========== 主页面 Tab ==========
-tab1, tab2 = st.tabs(["🗺️ 航线规划", "📡 飞行监控"])
-
-# ========== Tab1: 航线规划 ==========
-with tab1:
-    st.subheader("🗺️ 航线规划 - 3D地图")
-    col_left, col_right = st.columns([1, 2])
-    with col_left:
-        st.markdown("### 📍 坐标设置")
-        st.markdown("**起点 A**")
-        col_a1, col_a2 = st.columns(2)
-        with col_a1:
-            a_lat_input = st.number_input("纬度", value=32.2057, format="%.6f", key="a_lat")
-        with col_a2:
-            a_lon_input = st.number_input("经度", value=118.7178, format="%.6f", key="a_lon")
-        if st.button("📍 设置A点"):
-            display_lat, display_lon = convert_coordinate(a_lat_input, a_lon_input, st.session_state.coord_system, "WGS-84")
-            st.session_state.a_point = {"lat": display_lat, "lon": display_lon, "set": True}
-            st.success(f"✅ A点已设置 ({display_lat:.6f}, {display_lon:.6f})")
-            st.rerun()
-        
-        st.markdown("---")
-        st.markdown("**终点 B**")
-        col_b1, col_b2 = st.columns(2)
-        with col_b1:
-            b_lat_input = st.number_input("纬度", value=32.2100, format="%.6f", key="b_lat")
-        with col_b2:
-            b_lon_input = st.number_input("经度", value=118.7250, format="%.6f", key="b_lon")
-        if st.button("📍 设置B点"):
-            display_lat, display_lon = convert_coordinate(b_lat_input, b_lon_input, st.session_state.coord_system, "WGS-84")
-            st.session_state.b_point = {"lat": display_lat, "lon": display_lon, "set": True}
-            st.success(f"✅ B点已设置 ({display_lat:.6f}, {display_lon:.6f})")
-            st.rerun()
-        
-        st.markdown("---")
-        st.markdown("### ✈️ 飞行参数")
-        flight_height = st.slider("飞行高度 (m)", 20, 200, 50)
-        
-        if st.session_state.a_point["set"] and st.session_state.b_point["set"]:
-            distance = calculate_distance(st.session_state.a_point["lat"], st.session_state.a_point["lon"], st.session_state.b_point["lat"], st.session_state.b_point["lon"])
-            st.info(f"📏 AB点距离: {distance:.0f} 米")
-    
-    with col_right:
-        if st.session_state.a_point["set"] and st.session_state.b_point["set"]:
-            obstacles = [
-                (32.2070, 118.7195, "🏢 图书馆", 30),
-                (32.2082, 118.7210, "📚 教学楼", 35),
-                (32.2078, 118.7230, "🏛️ 行政楼", 28),
-                (32.2090, 118.7185, "🗼 水塔", 40),
-            ]
-            start_data = pd.DataFrame({'lat': [st.session_state.a_point["lat"]], 'lon': [st.session_state.a_point["lon"]], 'name': ['🟢 起点 A']})
-            end_data = pd.DataFrame({'lat': [st.session_state.b_point["lat"]], 'lon': [st.session_state.b_point["lon"]], 'name': ['🔴 终点 B']})
-            obstacles_data = pd.DataFrame(obstacles, columns=['lat', 'lon', 'name', 'height'])
-            
-            start_layer = pdk.Layer("ScatterplotLayer", data=start_data, get_position=["lon", "lat"], get_color=[0,255,0,255], get_radius=40)
-            end_layer = pdk.Layer("ScatterplotLayer", data=end_data, get_position=["lon", "lat"], get_color=[255,0,0,255], get_radius=40)
-            obstacle_layer = pdk.Layer("ColumnLayer", data=obstacles_data, get_position=["lon", "lat"], get_elevation="height", elevation_scale=5, radius=50, get_fill_color=[255,165,0,200])
-            
-            view_state = pdk.ViewState(latitude=(st.session_state.a_point["lat"]+st.session_state.b_point["lat"])/2, longitude=(st.session_state.a_point["lon"]+st.session_state.b_point["lon"])/2, zoom=15, pitch=50)
-            deck = pdk.Deck(layers=[start_layer, end_layer, obstacle_layer], initial_view_state=view_state, tooltip={"text": "{name}"}, map_style="mapbox://styles/mapbox/satellite-streets-v12")
-            st.pydeck_chart(deck, use_container_width=True)
-            
-            with st.expander("📋 障碍物列表"):
-                for obs in obstacles:
-                    st.write(f"- {obs[2]}: {obs[0]:.6f}, {obs[1]:.6f}")
-        else:
-            st.warning("⚠️ 请先设置 A 点和 B 点")
-
-# ========== Tab2: 飞行监控 ==========
-with tab2:
-    st.subheader("📡 飞行监控 - 心跳监测")
-    
-    col_btn1, col_btn2 = st.columns(2)
-    with col_btn1:
-        if not st.session_state.running:
-            if st.button("▶️ 启动心跳监测", use_container_width=True):
-                st.session_state.simulator.start()
-                st.session_state.running = True
-                st.rerun()
-        else:
-            if st.button("⏹️ 停止心跳监测", use_container_width=True):
-                st.session_state.simulator.stop()
-                st.session_state.running = False
-                st.rerun()
-    
-    with col_btn2:
-        if st.session_state.a_point["set"] and st.session_state.b_point["set"]:
-            st.success(f"📍 A: {st.session_state.a_point['lat']:.4f}")
-            st.info(f"📍 B: {st.session_state.b_point['lat']:.4f}")
-    
-    st.markdown("---")
-    col1, col2, col3 = st.columns(3)
-    
-    if st.session_state.running:
-        latest = st.session_state.simulator.get_latest_heartbeat()
-        history = st.session_state.simulator.get_history()
-        
-        if st.session_state.simulator.offline:
-            st.error("🚨 **警报！无人机已掉线超过3秒！**")
-        
-        with col1:
-            if latest and latest.get('status') == 'alive':
-                st.metric("📡 无人机状态", "🟢 在线飞行中")
-            else:
-                st.metric("📡 无人机状态", "🔴 已掉线")
-        with col2:
-            if latest:
-                st.metric("⏱️ 最后心跳", latest.get('time_str', '--'))
-            else:
-                st.metric("⏱️ 最后心跳", "--")
-        with col3:
-            heartbeat_count = len([h for h in history if h.get('status') == 'alive'])
-            st.metric("💗 累计心跳", f"{heartbeat_count} 次")
-        
-        if history and len(history) > 0:
-            df_data = []
-            for h in history:
-                df_data.append({
-                    '序号': h['heartbeat_id'],
-                    '时间': h['time_str'],
-                    '呼吸时间(秒)': h['breath_time'] if h.get('status') == 'alive' else None,
-                    '状态': '在线' if h.get('status') == 'alive' else '掉线'
-                })
-            df = pd.DataFrame(df_data)
-            
-            fig = go.Figure()
-            online_df = df[df['呼吸时间(秒)'].notna()]
-            if len(online_df) > 0:
-                fig.add_trace(go.Scatter(
-                    x=online_df['序号'],
-                    y=online_df['呼吸时间(秒)'],
-                    mode='lines+markers',
-                    name='🟢 心跳信号',
-                    line=dict(color='green', width=2)
-                ))
-            fig.update_layout(
-                title="心跳信号实时监控",
-                xaxis_title="心跳序号",
-                yaxis_title="呼吸时间 (秒)",
-                height=400,
-                template='plotly_white'
-            )
-            st.plotly_chart(fig, use_container_width=True)
-            
-            with st.expander("📋 最近心跳记录"):
-                st.dataframe(df.tail(10), use_container_width=True)
-    else:
-        st.info("👈 请点击「启动心跳监测」开始监控")
-    
-    if st.session_state.running:
-        time.sleep(0.5)
-        st.rerun()
-
+# ========== 页面标题 ==========
+st.title("🗺️ 无人机航线规划系统")
 st.markdown("---")
-st.caption(f"🕒 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | 坐标系: {st.session_state.coord_system} | v3.0")
+
+# ========== 左右两列布局 ==========
+col_left, col_right = st.columns([1, 2], gap="large")
+
+# ========== 左侧控制面板 ==========
+with col_left:
+    st.markdown("### 🎮 控制面板")
+    st.markdown("---")
+    
+    # 起点A
+    st.markdown("#### 📍 起点A")
+    st.caption("输入坐标：GCJ-02")
+    col_a1, col_a2 = st.columns(2)
+    with col_a1:
+        a_lat = st.number_input("纬度", value=st.session_state.a_point["lat"], format="%.6f", key="a_lat")
+    with col_a2:
+        a_lon = st.number_input("经度", value=st.session_state.a_point["lon"], format="%.6f", key="a_lon")
+    
+    if st.button("📍 设置A点", key="set_a", use_container_width=True):
+        display_lat, display_lon = convert_coordinate(a_lat, a_lon, "GCJ-02", "WGS-84")
+        st.session_state.a_point = {"lat": display_lat, "lon": display_lon, "set": True}
+        st.success(f"✅ A点已设置")
+        st.rerun()
+    
+    st.markdown("---")
+    
+    # 终点B
+    st.markdown("#### 📍 终点B")
+    st.caption("输入坐标：GCJ-02")
+    col_b1, col_b2 = st.columns(2)
+    with col_b1:
+        b_lat = st.number_input("纬度", value=st.session_state.b_point["lat"], format="%.6f", key="b_lat")
+    with col_b2:
+        b_lon = st.number_input("经度", value=st.session_state.b_point["lon"], format="%.6f", key="b_lon")
+    
+    if st.button("📍 设置B点", key="set_b", use_container_width=True):
+        display_lat, display_lon = convert_coordinate(b_lat, b_lon, "GCJ-02", "WGS-84")
+        st.session_state.b_point = {"lat": display_lat, "lon": display_lon, "set": True}
+        st.success(f"✅ B点已设置")
+        st.rerun()
+    
+    st.markdown("---")
+    
+    # 飞行参数
+    st.markdown("#### ✈️ 飞行参数")
+    st.session_state.flight_height = st.slider("设定飞行高度(m)", 20, 200, 50)
+    
+    st.markdown("---")
+    
+    # 系统状态
+    st.markdown("#### 📊 系统状态")
+    if st.session_state.a_point["set"]:
+        st.success("✅ A点已设")
+    else:
+        st.info("⚪ A点未设")
+    
+    if st.session_state.b_point["set"]:
+        st.success("✅ B点已设")
+    else:
+        st.info("⚪ B点未设")
+    
+    # 显示距离
+    if st.session_state.a_point["set"] and st.session_state.b_point["set"]:
+        distance = calculate_distance(
+            st.session_state.a_point["lat"], st.session_state.a_point["lon"],
+            st.session_state.b_point["lat"], st.session_state.b_point["lon"]
+        )
+        st.info(f"📏 AB点距离: **{distance:.0f} 米**")
+
+# ========== 右侧3D地图 ==========
+with col_right:
+    st.markdown("### 🗺️ 3D地图")
+    
+    if st.session_state.a_point["set"] and st.session_state.b_point["set"]:
+        # 障碍物（南京科技职业学院校园内）
+        obstacles = [
+            (32.2330, 118.7485, "📚 图书馆", 25),
+            (32.2335, 118.7492, "🏫 八号教学楼", 30),
+            (32.2338, 118.7498, "🏛️ 行政楼", 28),
+            (32.2340, 118.7502, "🔬 化工实验楼", 22),
+            (32.2345, 118.7495, "🛏️ 学生宿舍", 20),
+            (32.2325, 118.7480, "🍽️ 食堂", 18),
+        ]
+        
+        # 转换起点终点的显示坐标（WGS-84转GCJ-02用于显示）
+        display_a_lat, display_a_lon = convert_coordinate(
+            st.session_state.a_point["lat"], st.session_state.a_point["lon"], 
+            "WGS-84", "GCJ-02"
+        )
+        display_b_lat, display_b_lon = convert_coordinate(
+            st.session_state.b_point["lat"], st.session_state.b_point["lon"], 
+            "WGS-84", "GCJ-02"
+        )
+        
+        # 准备地图数据（使用WGS-84坐标系）
+        start_data = pd.DataFrame({
+            'lat': [st.session_state.a_point["lat"]], 
+            'lon': [st.session_state.a_point["lon"]], 
+            'name': ['🟢 起点 A'],
+            'display_coord': [f"{display_a_lat:.6f}, {display_a_lon:.6f}"]
+        })
+        
+        end_data = pd.DataFrame({
+            'lat': [st.session_state.b_point["lat"]], 
+            'lon': [st.session_state.b_point["lon"]], 
+            'name': ['🔴 终点 B'],
+            'display_coord': [f"{display_b_lat:.6f}, {display_b_lon:.6f}"]
+        })
+        
+        obstacles_data = pd.DataFrame(obstacles, columns=['lat', 'lon', 'name', 'height'])
+        
+        # 绘制航线点（直线路径）
+        num_points = 20
+        route_lats = np.linspace(st.session_state.a_point["lat"], st.session_state.b_point["lat"], num_points)
+        route_lons = np.linspace(st.session_state.a_point["lon"], st.session_state.b_point["lon"], num_points)
+        route_heights = [st.session_state.flight_height] * num_points
+        route_data = pd.DataFrame({
+            'lat': route_lats,
+            'lon': route_lons,
+            'height': route_heights
+        })
+        
+        # 起点图层
+        start_layer = pdk.Layer(
+            "ScatterplotLayer",
+            data=start_data,
+            get_position=["lon", "lat"],
+            get_color=[0, 255, 0, 255],
+            get_radius=50,
+            pickable=True,
+        )
+        
+        # 终点图层
+        end_layer = pdk.Layer(
+            "ScatterplotLayer",
+            data=end_data,
+            get_position=["lon", "lat"],
+            get_color=[255, 0, 0, 255],
+            get_radius=50,
+            pickable=True,
+        )
+        
+        # 障碍物图层（3D柱状）
+        obstacle_layer = pdk.Layer(
+            "ColumnLayer",
+            data=obstacles_data,
+            get_position=["lon", "lat"],
+            get_elevation="height",
+            elevation_scale=5,
+            radius=40,
+            get_fill_color=[255, 165, 0, 200],
+            pickable=True,
+        )
+        
+        # 航线图层
+        line_layer = pdk.Layer(
+            "LineLayer",
+            data=route_data,
+            get_source_position=["lon", "lat"],
+            get_target_position=["lon", "lat"],
+            get_color=[0, 255, 255, 200],
+            get_width=5,
+        )
+        
+        # 视图中心
+        center_lat = (st.session_state.a_point["lat"] + st.session_state.b_point["lat"]) / 2
+        center_lon = (st.session_state.a_point["lon"] + st.session_state.b_point["lon"]) / 2
+        
+        view_state = pdk.ViewState(
+            latitude=center_lat,
+            longitude=center_lon,
+            zoom=16,
+            pitch=50,
+            bearing=0,
+        )
+        
+        deck = pdk.Deck(
+            layers=[start_layer, end_layer, obstacle_layer, line_layer],
+            initial_view_state=view_state,
+            tooltip={"text": "{name}\n{display_coord}"},
+            map_style="mapbox://styles/mapbox/satellite-streets-v12",
+        )
+        
+        st.pydeck_chart(deck, use_container_width=True)
+        
+        # 障碍物列表
+        with st.expander("📋 校园内障碍物列表"):
+            for obs in obstacles:
+                st.write(f"- {obs[2]}: 纬度 {obs[0]:.6f}, 经度 {obs[1]:.6f}, 高度 {obs[3]}m")
+        
+        # 坐标信息
+        with st.expander("📍 当前坐标信息"):
+            st.write(f"**A点 (WGS-84):** {st.session_state.a_point['lat']:.6f}, {st.session_state.a_point['lon']:.6f}")
+            st.write(f"**A点 (GCJ-02):** {display_a_lat:.6f}, {display_a_lon:.6f}")
+            st.write(f"**B点 (WGS-84):** {st.session_state.b_point['lat']:.6f}, {st.session_state.b_point['lon']:.6f}")
+            st.write(f"**B点 (GCJ-02):** {display_b_lat:.6f}, {display_b_lon:.6f}")
+            st.write(f"**飞行高度:** {st.session_state.flight_height} 米")
+    else:
+        st.warning("⚠️ 请先在左侧设置 A 点和 B 点")
+
+# 页脚
+st.markdown("---")
+st.caption(f"🕒 最后更新: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | 南京科技职业学院 | 坐标系: GCJ-02 → WGS-84")

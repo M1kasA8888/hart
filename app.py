@@ -160,7 +160,6 @@ with col_left:
     
     # 显示距离
     if st.session_state.a_point["set"] and st.session_state.b_point["set"]:
-        # 转换回GCJ-02显示给用户
         gcj_a_lat, gcj_a_lon = convert_coordinate(
             st.session_state.a_point["lat"], st.session_state.a_point["lon"],
             "WGS-84", "GCJ-02"
@@ -179,11 +178,11 @@ with col_left:
 
 # ========== 右侧3D地图 ==========
 with col_right:
-    st.markdown("### 🗺️ 3D地图 - 南京科技职业学院")
+    st.markdown("### 🗺️ 3D卫星地图 - 南京科技职业学院")
+    st.caption("🛰️ 真实卫星影像 | 绿色:起点A | 红色:终点B | 橙色柱:障碍物 | 青色线:规划航线")
     
     if st.session_state.a_point["set"] and st.session_state.b_point["set"]:
         # 障碍物（南京科技职业学院校园内建筑 - 高德地图GCJ-02坐标）
-        # 这些坐标会自动转换为WGS-84用于地图显示
         obstacles_gcj02 = [
             (32.2330, 118.7495, "📚 图书馆", 25),
             (32.2335, 118.7500, "🏫 八号教学楼", 30),
@@ -200,7 +199,7 @@ with col_right:
             wgs_lat, wgs_lon = convert_coordinate(lat, lon, "GCJ-02", "WGS-84")
             obstacles_wgs84.append((wgs_lat, wgs_lon, name, height))
         
-        # 起点终点的显示坐标（用于tooltip）
+        # 起点终点的显示坐标
         gcj_a_lat, gcj_a_lon = convert_coordinate(
             st.session_state.a_point["lat"], st.session_state.a_point["lon"],
             "WGS-84", "GCJ-02"
@@ -214,14 +213,14 @@ with col_right:
         start_data = pd.DataFrame({
             'lat': [st.session_state.a_point["lat"]], 
             'lon': [st.session_state.a_point["lon"]], 
-            'name': ['🟢 起点 A'],
+            'name': ['🟢 起点 A (南门)'],
             'gcj_coord': [f"{gcj_a_lat:.6f}, {gcj_a_lon:.6f}"]
         })
         
         end_data = pd.DataFrame({
             'lat': [st.session_state.b_point["lat"]], 
             'lon': [st.session_state.b_point["lon"]], 
-            'name': ['🔴 终点 B'],
+            'name': ['🔴 终点 B (宿舍区)'],
             'gcj_coord': [f"{gcj_b_lat:.6f}, {gcj_b_lon:.6f}"]
         })
         
@@ -292,11 +291,14 @@ with col_right:
             bearing=0,
         )
         
+        # ========== 🔥 关键修改：使用卫星影像地图 ==========
         deck = pdk.Deck(
             layers=[start_layer, end_layer, obstacle_layer, line_layer],
             initial_view_state=view_state,
-            tooltip={"text": "{name}\n{gcj_coord}"},
-            map_style="mapbox://styles/mapbox/satellite-streets-v12",
+            tooltip={"text": "{name}\n坐标(GCJ-02): {gcj_coord}"},
+            map_style="mapbox://styles/mapbox/satellite-streets-v12",  # 🛰️ 卫星图+路名
+            # 如果想用纯卫星图（无路名），改成下面这行：
+            # map_style="mapbox://styles/mapbox/satellite-v9",
         )
         
         st.pydeck_chart(deck, use_container_width=True, height=600)
@@ -309,8 +311,8 @@ with col_right:
         
         # 航线信息
         with st.expander("✈️ 航线信息"):
-            st.write(f"**起点A (GCJ-02):** {gcj_a_lat:.6f}, {gcj_a_lon:.6f}")
-            st.write(f"**终点B (GCJ-02):** {gcj_b_lat:.6f}, {gcj_b_lon:.6f}")
+            st.write(f"**起点A (南门) GCJ-02:** {gcj_a_lat:.6f}, {gcj_a_lon:.6f}")
+            st.write(f"**终点B (宿舍区) GCJ-02:** {gcj_b_lat:.6f}, {gcj_b_lon:.6f}")
             st.write(f"**直线距离:** {distance:.0f} 米")
             st.write(f"**飞行高度:** {st.session_state.flight_height} 米")
             st.write(f"**障碍物数量:** {len(obstacles_gcj02)} 个")
@@ -319,4 +321,4 @@ with col_right:
 
 # 页脚
 st.markdown("---")
-st.caption(f"🕒 最后更新: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | 南京科技职业学院 | 坐标转换: GCJ-02 ↔ WGS-84 | 无人机智能化应用系统")
+st.caption(f"🕒 最后更新: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | 南京科技职业学院 | 底图: Mapbox 卫星影像 | 坐标转换: GCJ-02 ↔ WGS-84")

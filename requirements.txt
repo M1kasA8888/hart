@@ -3,3 +3,5 @@ plotly
 pandas
 numpy
 pydeck
+streamlit-drawable-canvas
+shapely

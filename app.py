@@ -8,7 +8,7 @@ import time
 from datetime import datetime
 import math
 
-# ========== 坐标系转换 ==========
+# ========== 坐标系转换（WGS-84 ↔ GCJ-02）==========
 def wgs84_to_gcj02(lat, lon):
     a = 6378245.0
     ee = 0.00669342162296594323
@@ -83,9 +83,9 @@ st.set_page_config(page_title="无人机智能化应用系统", page_icon="🚁"
 
 # 初始化
 if 'a_point' not in st.session_state:
-    st.session_state.a_point = {"lat": 32.2322, "lon": 118.749, "set": True}
+    st.session_state.a_point = {"lat": 32.2322, "lon": 118.7490, "set": True}
 if 'b_point' not in st.session_state:
-    st.session_state.b_point = {"lat": 32.2343, "lon": 118.749, "set": True}
+    st.session_state.b_point = {"lat": 32.2345, "lon": 118.7505, "set": True}
 if 'coord_system' not in st.session_state:
     st.session_state.coord_system = "GCJ-02"
 if 'simulator' not in st.session_state:
@@ -95,7 +95,7 @@ if 'flight_height' not in st.session_state:
     st.session_state.flight_height = 50
 
 # ========== 页面标题 ==========
-st.title("🗺️ 无人机航线规划系统")
+st.title("🗺️ 无人机航线规划系统 - 南京科技职业学院")
 st.markdown("---")
 
 # ========== 左右两列布局 ==========
@@ -108,7 +108,7 @@ with col_left:
     
     # 起点A
     st.markdown("#### 📍 起点A")
-    st.caption("输入坐标：GCJ-02")
+    st.caption("输入坐标：GCJ-02（高德地图）")
     col_a1, col_a2 = st.columns(2)
     with col_a1:
         a_lat = st.number_input("纬度", value=st.session_state.a_point["lat"], format="%.6f", key="a_lat")
@@ -118,14 +118,14 @@ with col_left:
     if st.button("📍 设置A点", key="set_a", use_container_width=True):
         display_lat, display_lon = convert_coordinate(a_lat, a_lon, "GCJ-02", "WGS-84")
         st.session_state.a_point = {"lat": display_lat, "lon": display_lon, "set": True}
-        st.success(f"✅ A点已设置")
+        st.success(f"✅ A点已设置 (GCJ-02: {a_lat:.6f}, {a_lon:.6f})")
         st.rerun()
     
     st.markdown("---")
     
     # 终点B
     st.markdown("#### 📍 终点B")
-    st.caption("输入坐标：GCJ-02")
+    st.caption("输入坐标：GCJ-02（高德地图）")
     col_b1, col_b2 = st.columns(2)
     with col_b1:
         b_lat = st.number_input("纬度", value=st.session_state.b_point["lat"], format="%.6f", key="b_lat")
@@ -135,7 +135,7 @@ with col_left:
     if st.button("📍 设置B点", key="set_b", use_container_width=True):
         display_lat, display_lon = convert_coordinate(b_lat, b_lon, "GCJ-02", "WGS-84")
         st.session_state.b_point = {"lat": display_lat, "lon": display_lon, "set": True}
-        st.success(f"✅ B点已设置")
+        st.success(f"✅ B点已设置 (GCJ-02: {b_lat:.6f}, {b_lon:.6f})")
         st.rerun()
     
     st.markdown("---")
@@ -160,56 +160,75 @@ with col_left:
     
     # 显示距离
     if st.session_state.a_point["set"] and st.session_state.b_point["set"]:
+        # 转换回GCJ-02显示给用户
+        gcj_a_lat, gcj_a_lon = convert_coordinate(
+            st.session_state.a_point["lat"], st.session_state.a_point["lon"],
+            "WGS-84", "GCJ-02"
+        )
+        gcj_b_lat, gcj_b_lon = convert_coordinate(
+            st.session_state.b_point["lat"], st.session_state.b_point["lon"],
+            "WGS-84", "GCJ-02"
+        )
         distance = calculate_distance(
             st.session_state.a_point["lat"], st.session_state.a_point["lon"],
             st.session_state.b_point["lat"], st.session_state.b_point["lon"]
         )
-        st.info(f"📏 AB点距离: **{distance:.0f} 米**")
+        st.info(f"📏 AB点直线距离: **{distance:.0f} 米**")
+        st.caption(f"A点(GCJ-02): {gcj_a_lat:.6f}, {gcj_a_lon:.6f}")
+        st.caption(f"B点(GCJ-02): {gcj_b_lat:.6f}, {gcj_b_lon:.6f}")
 
 # ========== 右侧3D地图 ==========
 with col_right:
-    st.markdown("### 🗺️ 3D地图")
+    st.markdown("### 🗺️ 3D地图 - 南京科技职业学院")
     
     if st.session_state.a_point["set"] and st.session_state.b_point["set"]:
-        # 障碍物（南京科技职业学院校园内）
-        obstacles = [
-            (32.2330, 118.7485, "📚 图书馆", 25),
-            (32.2335, 118.7492, "🏫 八号教学楼", 30),
-            (32.2338, 118.7498, "🏛️ 行政楼", 28),
-            (32.2340, 118.7502, "🔬 化工实验楼", 22),
-            (32.2345, 118.7495, "🛏️ 学生宿舍", 20),
-            (32.2325, 118.7480, "🍽️ 食堂", 18),
+        # 障碍物（南京科技职业学院校园内建筑 - 高德地图GCJ-02坐标）
+        # 这些坐标会自动转换为WGS-84用于地图显示
+        obstacles_gcj02 = [
+            (32.2330, 118.7495, "📚 图书馆", 25),
+            (32.2335, 118.7500, "🏫 八号教学楼", 30),
+            (32.2338, 118.7488, "🏛️ 行政楼", 28),
+            (32.2328, 118.7480, "🔬 化工实验楼", 22),
+            (32.2345, 118.7505, "🛏️ 学生宿舍区", 20),
+            (32.2325, 118.7498, "🍽️ 学生食堂", 18),
+            (32.2332, 118.7483, "⚡ 配电房", 12),
         ]
         
-        # 转换起点终点的显示坐标（WGS-84转GCJ-02用于显示）
-        display_a_lat, display_a_lon = convert_coordinate(
-            st.session_state.a_point["lat"], st.session_state.a_point["lon"], 
+        # 将障碍物坐标从GCJ-02转换为WGS-84用于地图显示
+        obstacles_wgs84 = []
+        for lat, lon, name, height in obstacles_gcj02:
+            wgs_lat, wgs_lon = convert_coordinate(lat, lon, "GCJ-02", "WGS-84")
+            obstacles_wgs84.append((wgs_lat, wgs_lon, name, height))
+        
+        # 起点终点的显示坐标（用于tooltip）
+        gcj_a_lat, gcj_a_lon = convert_coordinate(
+            st.session_state.a_point["lat"], st.session_state.a_point["lon"],
             "WGS-84", "GCJ-02"
         )
-        display_b_lat, display_b_lon = convert_coordinate(
-            st.session_state.b_point["lat"], st.session_state.b_point["lon"], 
+        gcj_b_lat, gcj_b_lon = convert_coordinate(
+            st.session_state.b_point["lat"], st.session_state.b_point["lon"],
             "WGS-84", "GCJ-02"
         )
         
-        # 准备地图数据（使用WGS-84坐标系）
+        # 准备地图数据
         start_data = pd.DataFrame({
             'lat': [st.session_state.a_point["lat"]], 
             'lon': [st.session_state.a_point["lon"]], 
             'name': ['🟢 起点 A'],
-            'display_coord': [f"{display_a_lat:.6f}, {display_a_lon:.6f}"]
+            'gcj_coord': [f"{gcj_a_lat:.6f}, {gcj_a_lon:.6f}"]
         })
         
         end_data = pd.DataFrame({
             'lat': [st.session_state.b_point["lat"]], 
             'lon': [st.session_state.b_point["lon"]], 
             'name': ['🔴 终点 B'],
-            'display_coord': [f"{display_b_lat:.6f}, {display_b_lon:.6f}"]
+            'gcj_coord': [f"{gcj_b_lat:.6f}, {gcj_b_lon:.6f}"]
         })
         
-        obstacles_data = pd.DataFrame(obstacles, columns=['lat', 'lon', 'name', 'height'])
+        obstacles_data = pd.DataFrame(obstacles_wgs84, columns=['lat', 'lon', 'name', 'height'])
         
-        # 绘制航线点（直线路径）
-        num_points = 20
+        # 绘制航线点
+        num_points = 30
         route_lats = np.linspace(st.session_state.a_point["lat"], st.session_state.b_point["lat"], num_points)
         route_lons = np.linspace(st.session_state.a_point["lon"], st.session_state.b_point["lon"], num_points)
         route_heights = [st.session_state.flight_height] * num_points
@@ -246,7 +265,7 @@ with col_right:
             get_position=["lon", "lat"],
             get_elevation="height",
             elevation_scale=5,
-            radius=40,
+            radius=35,
             get_fill_color=[255, 165, 0, 200],
             pickable=True,
         )
@@ -257,8 +276,8 @@ with col_right:
             data=route_data,
             get_source_position=["lon", "lat"],
             get_target_position=["lon", "lat"],
-            get_color=[0, 255, 255, 200],
-            get_width=5,
+            get_color=[0, 200, 255, 200],
+            get_width=4,
         )
         
         # 视图中心
@@ -268,35 +287,36 @@ with col_right:
         view_state = pdk.ViewState(
             latitude=center_lat,
             longitude=center_lon,
-            zoom=16,
-            pitch=50,
+            zoom=16.5,
+            pitch=55,
             bearing=0,
         )
         
         deck = pdk.Deck(
             layers=[start_layer, end_layer, obstacle_layer, line_layer],
             initial_view_state=view_state,
-            tooltip={"text": "{name}\n{display_coord}"},
+            tooltip={"text": "{name}\n{gcj_coord}"},
             map_style="mapbox://styles/mapbox/satellite-streets-v12",
         )
         
-        st.pydeck_chart(deck, use_container_width=True)
+        st.pydeck_chart(deck, use_container_width=True, height=600)
         
         # 障碍物列表
-        with st.expander("📋 校园内障碍物列表"):
-            for obs in obstacles:
-                st.write(f"- {obs[2]}: 纬度 {obs[0]:.6f}, 经度 {obs[1]:.6f}, 高度 {obs[3]}m")
+        with st.expander("📋 南京科技职业学院校园内障碍物列表"):
+            st.caption("坐标：GCJ-02（高德地图坐标系）")
+            for lat, lon, name, height in obstacles_gcj02:
+                st.write(f"- **{name}**: 纬度 {lat:.6f}, 经度 {lon:.6f}, 高度 {height}m")
         
-        # 坐标信息
-        with st.expander("📍 当前坐标信息"):
-            st.write(f"**A点 (WGS-84):** {st.session_state.a_point['lat']:.6f}, {st.session_state.a_point['lon']:.6f}")
-            st.write(f"**A点 (GCJ-02):** {display_a_lat:.6f}, {display_a_lon:.6f}")
-            st.write(f"**B点 (WGS-84):** {st.session_state.b_point['lat']:.6f}, {st.session_state.b_point['lon']:.6f}")
-            st.write(f"**B点 (GCJ-02):** {display_b_lat:.6f}, {display_b_lon:.6f}")
+        # 航线信息
+        with st.expander("✈️ 航线信息"):
+            st.write(f"**起点A (GCJ-02):** {gcj_a_lat:.6f}, {gcj_a_lon:.6f}")
+            st.write(f"**终点B (GCJ-02):** {gcj_b_lat:.6f}, {gcj_b_lon:.6f}")
+            st.write(f"**直线距离:** {distance:.0f} 米")
             st.write(f"**飞行高度:** {st.session_state.flight_height} 米")
+            st.write(f"**障碍物数量:** {len(obstacles_gcj02)} 个")
     else:
         st.warning("⚠️ 请先在左侧设置 A 点和 B 点")
 
 # 页脚
 st.markdown("---")
-st.caption(f"🕒 最后更新: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | 南京科技职业学院 | 坐标系: GCJ-02 → WGS-84")
+st.caption(f"🕒 最后更新: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | 南京科技职业学院 | 坐标转换: GCJ-02 ↔ WGS-84 | 无人机智能化应用系统")

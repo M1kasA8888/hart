@@ -4,13 +4,11 @@ import plotly.graph_objects as go
 import numpy as np
 import pydeck as pdk
 from heartbeat_sim import DroneHeartbeatSimulator
-from obstacle_manager import ObstacleManager
 import time
 from datetime import datetime
 import math
-import json
 
-# ========== 坐标系转换（WGS-84 ↔ GCJ-02）==========
+# ========== 坐标系转换 ==========
 def wgs84_to_gcj02(lat, lon):
     a = 6378245.0
     ee = 0.00669342162296594323
@@ -95,25 +93,21 @@ if 'simulator' not in st.session_state:
     st.session_state.running = False
 if 'flight_height' not in st.session_state:
     st.session_state.flight_height = 50
-if 'obstacle_manager' not in st.session_state:
-    st.session_state.obstacle_manager = ObstacleManager()
+if 'current_page' not in st.session_state:
+    st.session_state.current_page = "航线规划"
 
-# 添加默认障碍物（使用正确的方法调用）
-if st.session_state.obstacle_manager.get_count() == 0:
-    default_obstacles = [
-        {"name": "🏢 博业楼", "lat": 32.2335, "lon": 118.7485, "height": 25},
-        {"name": "📚 图书馆", "lat": 32.2338, "lon": 118.7492, "height": 28},
-        {"name": "🏫 教学楼", "lat": 32.2342, "lon": 118.7498, "height": 30},
+# 简单障碍物列表（不依赖 obstacle_manager）
+if 'obstacles' not in st.session_state:
+    st.session_state.obstacles = [
+        {"id": 1, "name": "🏢 博业楼", "lat": 32.2335, "lon": 118.7485, "height": 25},
+        {"id": 2, "name": "📚 图书馆", "lat": 32.2338, "lon": 118.7492, "height": 28},
+        {"id": 3, "name": "🏫 教学楼", "lat": 32.2342, "lon": 118.7498, "height": 30},
     ]
-    for obs in default_obstacles:
-        # 正确调用 add_obstacle 方法：先传坐标列表（多边形），再传名称和高度
-        polygon_coords = [[obs["lat"], obs["lon"]]]
-        st.session_state.obstacle_manager.add_obstacle(polygon_coords, name=obs["name"], height=obs["height"])
 
 # ========== 侧边栏 ==========
 with st.sidebar:
     st.header("📋 导航")
-    page = st.radio("功能页面", ["航线规划", "飞行监控"])
+    page = st.radio("功能页面", ["航线规划", "飞行监控"], index=0)
     st.session_state.current_page = page
     
     st.markdown("---")
@@ -137,7 +131,7 @@ with st.sidebar:
 
 # ========== 主页面 ==========
 st.title("🗺️ 无人机智能化应用系统 - 南京科技职业学院")
-st.caption("📍 起点A: 操场 (32.2320, 118.7480) | 终点B: 一食堂 (32.2355, 118.7490) | 🛰️ 卫星影像 | 障碍物: 博业楼、图书馆、教学楼")
+st.caption("📍 起点A: 操场 | 终点B: 一食堂 | 🛰️ 卫星影像 | 障碍物: 博业楼、图书馆、教学楼")
 
 st.markdown("---")
 
@@ -149,9 +143,7 @@ with col_left:
     if page == "航线规划":
         st.markdown("### 🎮 航线规划")
         
-        # 起点 A
         st.markdown("#### 📍 起点A (操场)")
-        st.caption("推荐坐标: 32.232000, 118.748000")
         col_a1, col_a2 = st.columns(2)
         with col_a1:
             a_lat = st.number_input("纬度", value=32.2320, format="%.6f", key="a_lat")
@@ -164,14 +156,12 @@ with col_left:
             else:
                 wgs_lat, wgs_lon = a_lat, a_lon
             st.session_state.a_point = {"lat": wgs_lat, "lon": wgs_lon, "set": True}
-            st.success("✅ A点已设置 (操场)")
+            st.success("✅ A点已设置")
             st.rerun()
         
         st.markdown("---")
         
-        # 终点 B
         st.markdown("#### 📍 终点B (一食堂)")
-        st.caption("推荐坐标: 32.235500, 118.749000")
         col_b1, col_b2 = st.columns(2)
         with col_b1:
             b_lat = st.number_input("纬度", value=32.2355, format="%.6f", key="b_lat")
@@ -184,12 +174,11 @@ with col_left:
             else:
                 wgs_lat, wgs_lon = b_lat, b_lon
             st.session_state.b_point = {"lat": wgs_lat, "lon": wgs_lon, "set": True}
-            st.success("✅ B点已设置 (一食堂)")
+            st.success("✅ B点已设置")
             st.rerun()
         
         st.markdown("---")
         
-        # 飞行参数
         st.markdown("#### ✈️ 飞行参数")
         st.session_state.flight_height = st.slider("设定飞行高度(m)", 10, 200, 50)
         
@@ -202,37 +191,32 @@ with col_left:
         
         st.markdown("---")
         
-        # 障碍物管理
-        st.markdown("#### 🧱 障碍物配置")
-        obstacle_count = st.session_state.obstacle_manager.get_count()
-        st.caption(f"📊 当前障碍物数量: **{obstacle_count}** 个")
-        
-        col_btn1, col_btn2 = st.columns(2)
-        with col_btn1:
-            if st.button("💾 保存配置", use_container_width=True):
-                if st.session_state.obstacle_manager.save():
-                    st.success("已保存")
-                else:
-                    st.error("保存失败")
-        with col_btn2:
-            if st.button("🗑️ 清除全部", use_container_width=True):
-                st.session_state.obstacle_manager.clear_all()
-                st.success("已清除")
-                st.rerun()
+        st.markdown("#### 🧱 障碍物列表")
+        for obs in st.session_state.obstacles:
+            col_d1, col_d2 = st.columns([3, 1])
+            with col_d1:
+                st.write(f"**{obs['name']}** - {obs['lat']:.6f}, {obs['lon']:.6f}")
+            with col_d2:
+                if st.button(f"🗑️", key=f"del_{obs['id']}"):
+                    st.session_state.obstacles = [o for o in st.session_state.obstacles if o['id'] != obs['id']]
+                    st.rerun()
         
         # 添加障碍物
         st.markdown("#### ➕ 添加障碍物")
         col_obs1, col_obs2 = st.columns(2)
         with col_obs1:
-            obs_lat = st.number_input("纬度", value=32.2335, format="%.6f", key="obs_lat")
+            new_lat = st.number_input("纬度", value=32.2335, format="%.6f", key="new_lat")
         with col_obs2:
-            obs_lon = st.number_input("经度", value=118.7490, format="%.6f", key="obs_lon")
-        obs_name = st.text_input("名称", value="新建筑", key="obs_name")
+            new_lon = st.number_input("经度", value=118.7490, format="%.6f", key="new_lon")
+        new_name = st.text_input("名称", value="新建筑", key="new_name")
         
         if st.button("➕ 添加", use_container_width=True):
-            wgs_lat, wgs_lon = convert_coordinate(obs_lat, obs_lon, st.session_state.coord_system, "WGS-84")
-            st.session_state.obstacle_manager.add_obstacle([[wgs_lat, wgs_lon]], name=obs_name, height=30)
-            st.success(f"已添加: {obs_name}")
+            new_id = max([o['id'] for o in st.session_state.obstacles]) + 1 if st.session_state.obstacles else 1
+            st.session_state.obstacles.append({
+                "id": new_id, "name": new_name, 
+                "lat": new_lat, "lon": new_lon, "height": 30
+            })
+            st.success(f"已添加: {new_name}")
             st.rerun()
     
     else:  # 飞行监控
@@ -301,13 +285,10 @@ with col_left:
 # ========== 右侧地图 ==========
 with col_right:
     if page == "航线规划":
-        st.markdown("### 🗺️ Mapbox 卫星地图 - 南京科技职业学院全景")
+        st.markdown("### 🗺️ 卫星地图 - 南京科技职业学院全景")
         
         if st.session_state.a_point["set"] and st.session_state.b_point["set"]:
-            # 获取障碍物
-            obstacles = st.session_state.obstacle_manager.get_obstacles_for_map()
-            
-            # 显示坐标
+            # 转换显示坐标
             show_a_lat, show_a_lon = convert_coordinate(
                 st.session_state.a_point["lat"], st.session_state.a_point["lon"],
                 "WGS-84", "GCJ-02"
@@ -320,14 +301,15 @@ with col_right:
             # 地图数据
             start_data = pd.DataFrame({
                 'lat': [st.session_state.a_point["lat"]], 'lon': [st.session_state.a_point["lon"]],
-                'name': ['🟢 起点A (操场)'], 'coord': [f"{show_a_lat:.6f}, {show_a_lon:.6f}"]
+                'name': ['🟢 起点A (操场)']
             })
             end_data = pd.DataFrame({
                 'lat': [st.session_state.b_point["lat"]], 'lon': [st.session_state.b_point["lon"]],
-                'name': ['🔴 终点B (一食堂)'], 'coord': [f"{show_b_lat:.6f}, {show_b_lon:.6f}"]
+                'name': ['🔴 终点B (一食堂)']
             })
             
-            obstacles_data = pd.DataFrame(obstacles) if obstacles else pd.DataFrame()
+            # 障碍物数据
+            obstacles_data = pd.DataFrame(st.session_state.obstacles) if st.session_state.obstacles else pd.DataFrame()
             
             # 航线点
             num_points = 30
@@ -338,12 +320,12 @@ with col_right:
             # 起点图层
             start_layer = pdk.Layer(
                 "ScatterplotLayer", data=start_data,
-                get_position=["lon", "lat"], get_color=[0, 255, 0, 255], get_radius=40, pickable=True,
+                get_position=["lon", "lat"], get_color=[0, 255, 0, 255], get_radius=40
             )
             # 终点图层
             end_layer = pdk.Layer(
                 "ScatterplotLayer", data=end_data,
-                get_position=["lon", "lat"], get_color=[255, 0, 0, 255], get_radius=40, pickable=True,
+                get_position=["lon", "lat"], get_color=[255, 0, 0, 255], get_radius=40
             )
             # 障碍物图层
             if not obstacles_data.empty:
@@ -351,7 +333,7 @@ with col_right:
                     "ColumnLayer", data=obstacles_data,
                     get_position=["lon", "lat"], get_elevation="height",
                     elevation_scale=5, radius=25, disk_resolution=12,
-                    get_fill_color=[255, 165, 0, 200], pickable=True,
+                    get_fill_color=[255, 165, 0, 200]
                 )
             else:
                 obstacle_layer = None
@@ -359,7 +341,7 @@ with col_right:
             line_layer = pdk.Layer(
                 "LineLayer", data=route_data,
                 get_source_position=["lon", "lat"], get_target_position=["lon", "lat"],
-                get_color=[0, 150, 255, 200], get_width=4,
+                get_color=[0, 150, 255, 200], get_width=4
             )
             
             # 视图中心
@@ -372,7 +354,7 @@ with col_right:
             if obstacle_layer:
                 layers.append(obstacle_layer)
             
-            # 使用 Mapbox 卫星影像
+            # 卫星地图
             deck = pdk.Deck(
                 layers=layers,
                 initial_view_state=view_state,
@@ -382,23 +364,12 @@ with col_right:
             
             st.pydeck_chart(deck, use_container_width=True, height=550)
             
-            # 显示障碍物列表
-            with st.expander("📋 校园内障碍物列表"):
-                for obs in obstacles:
-                    gcj_lat, gcj_lon = convert_coordinate(obs['lat'], obs['lon'], "WGS-84", "GCJ-02")
-                    col_d1, col_d2 = st.columns([3, 1])
-                    with col_d1:
-                        st.write(f"**{obs['name']}** - {gcj_lat:.6f}, {gcj_lon:.6f}")
-                    with col_d2:
-                        if st.button(f"🗑️", key=f"del_{obs['id']}"):
-                            st.session_state.obstacle_manager.remove_obstacle(obs['id'])
-                            st.rerun()
-            
-            st.info("""
+            st.info(f"""
             📍 **校园位置说明**：
-            - **起点A (操场)**：学校南侧运动场区域 (32.2320, 118.7480)
-            - **终点B (一食堂)**：学校北侧生活区 (32.2355, 118.7490)
-            - **障碍物**：博业楼、图书馆、教学楼 (位于操场到食堂之间)
+            - **起点A (操场)**：{show_a_lat:.6f}, {show_a_lon:.6f}
+            - **终点B (一食堂)**：{show_b_lat:.6f}, {show_b_lon:.6f}
+            - **AB点距离**: {distance:.0f} 米
+            - **飞行高度**: {st.session_state.flight_height} 米
             """)
             
         else:
@@ -406,4 +377,4 @@ with col_right:
 
 # 页脚
 st.markdown("---")
-st.caption(f"🕒 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | 南京科技职业学院 | 地图: Mapbox 卫星影像 | 航线: 操场 → 一食堂")
+st.caption(f"🕒 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | 南京科技职业学院 | 地图: Mapbox 卫星影像")

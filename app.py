@@ -85,9 +85,9 @@ st.set_page_config(page_title="无人机智能化应用系统", page_icon="🚁"
 
 # 初始化
 if 'a_point' not in st.session_state:
-    st.session_state.a_point = {"lat": 32.2320, "lon": 118.7480, "set": True}  # 操场
+    st.session_state.a_point = {"lat": 32.2320, "lon": 118.7480, "set": True}
 if 'b_point' not in st.session_state:
-    st.session_state.b_point = {"lat": 32.2355, "lon": 118.7490, "set": True}  # 一食堂
+    st.session_state.b_point = {"lat": 32.2355, "lon": 118.7490, "set": True}
 if 'coord_system' not in st.session_state:
     st.session_state.coord_system = "GCJ-02"
 if 'simulator' not in st.session_state:
@@ -97,23 +97,23 @@ if 'flight_height' not in st.session_state:
     st.session_state.flight_height = 50
 if 'obstacle_manager' not in st.session_state:
     st.session_state.obstacle_manager = ObstacleManager()
-if 'current_page' not in st.session_state:
-    st.session_state.current_page = "航线规划"
 
-# 添加默认障碍物（操场到食堂之间的建筑）
-default_obstacles = [
-    {"name": "🏢 博业楼", "lat": 32.2335, "lon": 118.7485, "height": 25},
-    {"name": "📚 图书馆", "lat": 32.2338, "lon": 118.7492, "height": 28},
-    {"name": "🏫 教学楼", "lat": 32.2342, "lon": 118.7498, "height": 30},
-]
+# 添加默认障碍物（使用正确的方法调用）
 if st.session_state.obstacle_manager.get_count() == 0:
+    default_obstacles = [
+        {"name": "🏢 博业楼", "lat": 32.2335, "lon": 118.7485, "height": 25},
+        {"name": "📚 图书馆", "lat": 32.2338, "lon": 118.7492, "height": 28},
+        {"name": "🏫 教学楼", "lat": 32.2342, "lon": 118.7498, "height": 30},
+    ]
     for obs in default_obstacles:
-        st.session_state.obstacle_manager.add_obstacle([[obs["lat"], obs["lon"]]], name=obs["name"], height=obs["height"])
+        # 正确调用 add_obstacle 方法：先传坐标列表（多边形），再传名称和高度
+        polygon_coords = [[obs["lat"], obs["lon"]]]
+        st.session_state.obstacle_manager.add_obstacle(polygon_coords, name=obs["name"], height=obs["height"])
 
 # ========== 侧边栏 ==========
 with st.sidebar:
     st.header("📋 导航")
-    page = st.radio("功能页面", ["航线规划", "飞行监控"], index=0 if st.session_state.current_page == "航线规划" else 1)
+    page = st.radio("功能页面", ["航线规划", "飞行监控"])
     st.session_state.current_page = page
     
     st.markdown("---")
@@ -125,13 +125,19 @@ with st.sidebar:
     st.header("📊 系统状态")
     col_status1, col_status2 = st.columns(2)
     with col_status1:
-        st.success("✅ A点已设") if st.session_state.a_point["set"] else st.info("⚪ A点未设")
+        if st.session_state.a_point["set"]:
+            st.success("✅ A点已设")
+        else:
+            st.info("⚪ A点未设")
     with col_status2:
-        st.success("✅ B点已设") if st.session_state.b_point["set"] else st.info("⚪ B点未设")
+        if st.session_state.b_point["set"]:
+            st.success("✅ B点已设")
+        else:
+            st.info("⚪ B点未设")
 
 # ========== 主页面 ==========
 st.title("🗺️ 无人机智能化应用系统 - 南京科技职业学院")
-st.caption("📍 起点A: 操场 | 终点B: 一食堂 | 🛰️ Mapbox 卫星影像 | 障碍物: 博业楼、图书馆、教学楼")
+st.caption("📍 起点A: 操场 (32.2320, 118.7480) | 终点B: 一食堂 (32.2355, 118.7490) | 🛰️ 卫星影像 | 障碍物: 博业楼、图书馆、教学楼")
 
 st.markdown("---")
 
@@ -140,12 +146,12 @@ col_left, col_right = st.columns([1, 1.5], gap="large")
 
 # ========== 左侧控制面板 ==========
 with col_left:
-    if st.session_state.current_page == "航线规划":
+    if page == "航线规划":
         st.markdown("### 🎮 航线规划")
         
-        # 起点 A（操场）
+        # 起点 A
         st.markdown("#### 📍 起点A (操场)")
-        st.caption("坐标: 32.232000, 118.748000")
+        st.caption("推荐坐标: 32.232000, 118.748000")
         col_a1, col_a2 = st.columns(2)
         with col_a1:
             a_lat = st.number_input("纬度", value=32.2320, format="%.6f", key="a_lat")
@@ -163,9 +169,9 @@ with col_left:
         
         st.markdown("---")
         
-        # 终点 B（一食堂）
+        # 终点 B
         st.markdown("#### 📍 终点B (一食堂)")
-        st.caption("坐标: 32.235500, 118.749000")
+        st.caption("推荐坐标: 32.235500, 118.749000")
         col_b1, col_b2 = st.columns(2)
         with col_b1:
             b_lat = st.number_input("纬度", value=32.2355, format="%.6f", key="b_lat")
@@ -204,8 +210,10 @@ with col_left:
         col_btn1, col_btn2 = st.columns(2)
         with col_btn1:
             if st.button("💾 保存配置", use_container_width=True):
-                st.session_state.obstacle_manager.save()
-                st.success("已保存")
+                if st.session_state.obstacle_manager.save():
+                    st.success("已保存")
+                else:
+                    st.error("保存失败")
         with col_btn2:
             if st.button("🗑️ 清除全部", use_container_width=True):
                 st.session_state.obstacle_manager.clear_all()
@@ -224,6 +232,7 @@ with col_left:
         if st.button("➕ 添加", use_container_width=True):
             wgs_lat, wgs_lon = convert_coordinate(obs_lat, obs_lon, st.session_state.coord_system, "WGS-84")
             st.session_state.obstacle_manager.add_obstacle([[wgs_lat, wgs_lon]], name=obs_name, height=30)
+            st.success(f"已添加: {obs_name}")
             st.rerun()
     
     else:  # 飞行监控
@@ -253,8 +262,10 @@ with col_left:
                 st.error("🚨 警报！无人机已掉线超过3秒！")
             
             with col1:
-                status = "🟢 在线" if latest and latest.get('status') == 'alive' else "🔴 掉线"
-                st.metric("📡 无人机状态", status)
+                if latest and latest.get('status') == 'alive':
+                    st.metric("📡 无人机状态", "🟢 在线")
+                else:
+                    st.metric("📡 无人机状态", "🔴 掉线")
             with col2:
                 st.metric("⏱️ 最后心跳", latest.get('time_str', '--') if latest else "--")
             with col3:
@@ -287,16 +298,16 @@ with col_left:
             time.sleep(0.5)
             st.rerun()
 
-# ========== 右侧地图（Mapbox 卫星图）==========
+# ========== 右侧地图 ==========
 with col_right:
-    if st.session_state.current_page == "航线规划":
+    if page == "航线规划":
         st.markdown("### 🗺️ Mapbox 卫星地图 - 南京科技职业学院全景")
         
         if st.session_state.a_point["set"] and st.session_state.b_point["set"]:
             # 获取障碍物
             obstacles = st.session_state.obstacle_manager.get_obstacles_for_map()
             
-            # 显示坐标（GCJ-02）
+            # 显示坐标
             show_a_lat, show_a_lon = convert_coordinate(
                 st.session_state.a_point["lat"], st.session_state.a_point["lon"],
                 "WGS-84", "GCJ-02"
@@ -361,12 +372,12 @@ with col_right:
             if obstacle_layer:
                 layers.append(obstacle_layer)
             
-            # 🔥 使用 Mapbox 卫星影像（Streamlit Cloud 正常显示）
+            # 使用 Mapbox 卫星影像
             deck = pdk.Deck(
                 layers=layers,
                 initial_view_state=view_state,
                 tooltip={"text": "{name}"},
-                map_style="mapbox://styles/mapbox/satellite-streets-v12",  # 真实卫星图
+                map_style="mapbox://styles/mapbox/satellite-streets-v12",
             )
             
             st.pydeck_chart(deck, use_container_width=True, height=550)
@@ -383,12 +394,11 @@ with col_right:
                             st.session_state.obstacle_manager.remove_obstacle(obs['id'])
                             st.rerun()
             
-            # 位置说明
             st.info("""
             📍 **校园位置说明**：
-            - **起点A (操场)**：学校南侧运动场区域
-            - **终点B (一食堂)**：学校北侧生活区
-            - **障碍物**：博业楼[citation:2]、图书馆、教学楼
+            - **起点A (操场)**：学校南侧运动场区域 (32.2320, 118.7480)
+            - **终点B (一食堂)**：学校北侧生活区 (32.2355, 118.7490)
+            - **障碍物**：博业楼、图书馆、教学楼 (位于操场到食堂之间)
             """)
             
         else:
@@ -396,4 +406,4 @@ with col_right:
 
 # 页脚
 st.markdown("---")
-st.caption(f"🕒 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | 南京科技职业学院 [citation:1] | 地图: Mapbox 卫星影像 | 坐标: 操场→一食堂")
+st.caption(f"🕒 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | 南京科技职业学院 | 地图: Mapbox 卫星影像 | 航线: 操场 → 一食堂")

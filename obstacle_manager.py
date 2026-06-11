@@ -8,18 +8,18 @@ class ObstacleManager:
     """障碍物管理器 - 支持持久化存储"""
     
     def __init__(self):
-        self.obstacles = []  # 存储多边形障碍物
+        self.obstacles = []
         self.load()
     
-    def add_obstacle(self, polygon_coords, name="障碍物"):
+    def add_obstacle(self, polygon_coords, name="障碍物", height=30):
         """添加多边形障碍物"""
         obstacle = {
             "id": len(self.obstacles) + 1,
             "name": name,
             "type": "polygon",
-            "coordinates": polygon_coords,  # [[lat, lon], [lat, lon], ...]
+            "coordinates": polygon_coords,
             "created_at": datetime.now().isoformat(),
-            "height": 30  # 默认高度30米
+            "height": height
         }
         self.obstacles.append(obstacle)
         self.save()
@@ -66,9 +66,8 @@ class ObstacleManager:
         map_obstacles = []
         for obs in self.obstacles:
             if obs["type"] == "polygon":
-                # 计算多边形中心点（用于显示柱状图）
                 coords = obs["coordinates"]
-                if coords:
+                if coords and len(coords) > 0:
                     center_lat = sum(p[0] for p in coords) / len(coords)
                     center_lon = sum(p[1] for p in coords) / len(coords)
                     map_obstacles.append({
@@ -76,8 +75,7 @@ class ObstacleManager:
                         "name": obs["name"],
                         "lat": center_lat,
                         "lon": center_lon,
-                        "height": obs.get("height", 30),
-                        "polygon": coords  # 保留多边形用于绘制
+                        "height": obs.get("height", 30)
                     })
         return map_obstacles
     
